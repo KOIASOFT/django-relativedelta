@@ -1,5 +1,9 @@
+from datetime import timedelta
+
+from dateutil.relativedelta import relativedelta
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.query_utils import DeferredAttribute
 from relativedeltafield.utils import (format_relativedelta,
                                       parse_relativedelta,
                                       relativedelta_as_csv)
@@ -10,23 +14,16 @@ except ImportError:
     from django.utils.translation import ugettext as _
 
 
-class RelativeDeltaDescriptor:
-    def __init__(self, field) -> None:
-        self.field = field
+class RelativeDeltaDescriptor(DeferredAttribute):
 
     def __get__(self, obj, objtype=None):
-        if obj is None:
-            return None
-        value = obj.__dict__.get(self.field.name)
-        if value is None:
-            return None
-        try:
-            return parse_relativedelta(value)
-        except ValueError as e:
-            raise ValidationError({self.field.name: e})
-
-    def __set__(self, obj, value):
-        obj.__dict__[self.field.name] = value
+        val = super().__get__(obj, objtype)
+        if isinstance(val, (str, timedelta, relativedelta)):
+            try:
+                return parse_relativedelta(val)
+            except ValueError as e:
+                raise ValidationError({self.field.name: e})
+        return val
 
 
 class RelativeDeltaField(models.Field):
